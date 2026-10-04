@@ -12,6 +12,9 @@ firmware. Source of truth is the code: `firmware/src/midi.c` (protocol),
 
 - Class-compliant **USB-MIDI** device (no host driver).
 - The device listens on **MIDI channel 0** only.
+- The device also has a **USB-MIDI IN** endpoint. Command replies (currently
+  only the firmware version) are sent back as SysEx, so a host that wants a
+  reply must open the matching MIDI input as well as the output.
 - **System Exclusive (SysEx)** — full control: static colours, animations,
   auxiliary pins, commands.
 - Every byte in a SysEx payload is a **7-bit MIDI data byte** (`0x00`–`0x7F`).
@@ -43,7 +46,8 @@ selects what the record does:
 | `0x00` | all LEDs | r | g | b |
 | `0x01`–`0x03` | LED 0/1/2 | r | g | b |
 | `0x04`–`0x0A` | animation | see §1.5 | | |
-| `0x0B`–`0x0F` | *reserved* | | | |
+| `0x0B` | firmware version reply (device → host) | major | minor | patch |
+| `0x0C`–`0x0F` | *reserved* | | | |
 | `0x10`–`0x13` | pin PA0–PA3 | type | level | ignored |
 | `0x14`–`0x7E` | *reserved* | | | |
 | `0x7F` | command | cmd | arg0 | arg1 |
@@ -98,9 +102,20 @@ Address `0x7F` is a command record `<0x7F> <cmd> <arg0> <arg1>`:
 | Command | Meaning | 
 | ------- | ------- | 
 | `0x01` | reboot into the ROM USB bootloader |
-| `0x02` | request firmware version |
+| `0x02` | request firmware version (reply: record `0x0B`) |
 
 Unknown commands and non-zero arguments are ignored.
+
+Command `0x02` asks the device to answer over the USB-MIDI IN endpoint with a
+normal four-byte record so the host can reuse its record parser:
+
+```
+F0 13 37 0B <major> <minor> <patch> F7
+```
+
+Each component is a 7-bit number. The current firmware is `1.0.0`, so the
+reply is `F0 13 37 0B 01 00 00 F7`. The device answers once per matching `0x02`
+record; `arg0` and `arg1` must be zero, like every other command.
 
 ## 1.8 Interaction rules
 
@@ -120,4 +135,6 @@ Colour wheel (offset)  F0 13 37 09 00 00 00 F7
 PA0 high               F0 13 37 10 00 01 00 F7
 PA1 PWM 50%            F0 13 37 11 01 40 00 F7
 Reboot to bootloader   F0 13 37 7F 01 00 00 F7
+Request firmware ver.  F0 13 37 7F 02 00 00 F7
+Version reply (1.0.0)  F0 13 37 0B 01 00 00 F7   (device → host)
 ```

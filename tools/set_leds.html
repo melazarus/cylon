@@ -82,6 +82,7 @@
       <label for="port">MIDI output</label>
       <select id="port"></select>
       <button id="connect" class="primary">Connect</button>
+      <button id="version" disabled>Firmware version</button>
       <button id="boot" disabled>Reboot to bootloader</button>
     </div>
     <div id="status">Not connected.</div>
@@ -117,6 +118,8 @@
   <code>0x01</code>/<code>0x02</code>/<code>0x03</code> for one LED.
   Each channel is sent as a 7-bit value, so the LED always receives an even 8-bit
   value (the “effective” colour shown under each picker).
+  <b>Firmware version</b> sends <code>F0 13 37 7F 02 00 00 F7</code> and the device
+  replies with <code>F0 13 37 0B &lt;major&gt; &lt;minor&gt; &lt;patch&gt; F7</code>.
   Web MIDI needs a secure context: if the browser blocks it from <code>file://</code>,
   serve this folder with <code>python -m http.server</code> and open
   <code>http://localhost:8000/set_leds.html</code>.
@@ -132,6 +135,7 @@
  *   cylon.setLed(0, 255, 0, 0);      // LED 0 red
  *   cylon.setAll(0, 0, 255);         // all LEDs blue
  *   cylon.rebootToBootloader();
+ *   cylon.requestVersion((v) => console.log(v)); // firmware version
  *
  * The class is also exported on window.CylonMidi.
  * ------------------------------------------------------------------ */
@@ -139,7 +143,9 @@ class CylonMidi {
   static MANUFACTURER_ID = [0x13, 0x37];
   static ADDRESS_ALL = 0x00;                // broadcast to every LED
   static LED_ADDRESS = [0x01, 0x02, 0x03];  // LED 0 / 1 / 2
+  static VERSION_ADDRESS = 0x0b;            // firmware version reply record
   static CMD_ENTER_BOOTLOADER = [0x7f, 0x01, 0x00, 0x00];
+  static CMD_GET_VERSION = [0x7f, 0x02, 0x00, 0x00];
   static ANIM = {
     BLINK_1HZ: 0x04,
     BLINK_2HZ: 0x05,
@@ -158,6 +164,8 @@ class CylonMidi {
   constructor() {
     this.access = null;
     this.output = null;
+    this.input = null;
+    this._versionCallback = null;
   }
 
   /** 8-bit value -> 7-bit MIDI data byte (the firmware shifts it back up). */
@@ -193,6 +201,27 @@ class CylonMidi {
   use(output) {
     this.output = output || null;
     return this.output;
+  }
+
+  /** All MIDI input devices the browser can see. */
+  inputs() {
+    return this.access ? Array.from(this.access.inputs.values()) : [];
+  }
+
+  /** Pick an input by name substring (default "cylon"), else the first one. */
+  pickInput(hint = "cylon") {
+    const ins = this.inputs();
+    if (!ins.length) return null;
+    const needle = hint.toLowerCase();
+    return ins.find((i) => i.name.toLowerCase().includes(needle)) || ins[0];
+  }
+
+  /** Select the input used to receive device replies. Pass null to detach. */
+  useInput(input) {
+    if (this.input) this.input.onmidimessage = null;
+    this.input = input || null;
+    if (this.input) this.input.onmidimessage = (event) => this._handleMessage(event);
+    return this.input;
   }
 
   get connected() {
@@ -259,6 +288,28 @@ class CylonMidi {
     this.send(CylonMidi.CMD_ENTER_BOOTLOADER);
   }
 
+  /** Ask for the firmware version; `callback([major, minor, patch])` runs on reply. */
+  requestVersion(callback) {
+    this._versionCallback = callback || null;
+    this.send(CylonMidi.CMD_GET_VERSION);
+  }
+
+  /** Handle a device -> host message; recognises the version reply record. */
+  _handleMessage(event) {
+    const data = Array.from(event.data);
+    for (let i = 0; i + 5 < data.length; i++) {
+      if (
+        data[i] === CylonMidi.MANUFACTURER_ID[0] &&
+        data[i + 1] === CylonMidi.MANUFACTURER_ID[1] &&
+        data[i + 2] === CylonMidi.VERSION_ADDRESS
+      ) {
+        const version = data.slice(i + 3, i + 6);
+        if (this._versionCallback) this._versionCallback(version);
+        return;
+      }
+    }
+  }
+
   /** Wrap a payload in the F0 … F7 SysEx frame and send it. */
   send(payload) {
     if (!this.output) throw new Error("No MIDI output selected.");
@@ -280,7 +331,7 @@ window.CylonMidi = CylonMidi;
 window.cylon = cylon;
 
 const $ = (id) => document.getElementById(id);
-const els = { port: $("port"), connect: $("connect"), boot: $("boot"), status: $("status"), leds: $("leds"), log: $("log") };
+const els = { port: $("port"), connect: $("connect"), boot: $("boot"), version: $("version"), status: $("status"), leds: $("leds"), log: $("log") };
 
 const hexToRgb = (hex) => {
   const n = parseInt(hex.slice(1), 16);
@@ -408,6 +459,7 @@ function refreshPorts() {
   const index = preferred ? outs.indexOf(preferred) : 0;
   els.port.value = String(index >= 0 ? index : 0);
   cylon.use(outs[Number(els.port.value)]);
+  cylon.useInput(cylon.pickInput("cylon"));
 
   if (current !== els.port.value) log(`selected "${cylon.output.name}"`);
 }
@@ -421,6 +473,7 @@ els.connect.addEventListener("click", async () => {
     refreshPorts();
     setStatus(`Connected — ${cylon.output ? cylon.output.name : "no output"}`, "ok");
     els.boot.disabled = !cylon.connected;
+    els.version.disabled = !cylon.connected;
     log("MIDI access granted");
   } catch (err) {
     setStatus(err.message, "err");
@@ -432,7 +485,9 @@ els.connect.addEventListener("click", async () => {
 
 els.port.addEventListener("change", () => {
   cylon.use(cylon.outputs()[Number(els.port.value)] || null);
+  cylon.useInput(cylon.pickInput("cylon"));
   els.boot.disabled = !cylon.connected;
+  els.version.disabled = !cylon.connected;
   if (cylon.connected) log(`selected "${cylon.output.name}"`);
 });
 
@@ -441,6 +496,19 @@ els.boot.addEventListener("click", () => {
     cylon.rebootToBootloader();
     setStatus("Sent bootloader command — the device will re-enumerate.", "ok");
     log("sent reboot-to-bootloader");
+  } catch (err) {
+    setStatus(err.message, "err");
+  }
+});
+
+els.version.addEventListener("click", () => {
+  try {
+    cylon.requestVersion((version) => {
+      const text = `${version[0]}.${version[1]}.${version[2]}`;
+      setStatus(`Firmware version ${text}`, "ok");
+      log(`firmware version ${text}`);
+    });
+    log("requested firmware version");
   } catch (err) {
     setStatus(err.message, "err");
   }

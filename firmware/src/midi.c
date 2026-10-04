@@ -3,6 +3,8 @@
  */
 #include <wch_usbmidi_internal.h>
 
+#include <stdlib.h> /* atoi(): VERSION_* are string macros */
+
 #include "anim.h"
 #include "board.h"
 #include "midi.h"
@@ -27,14 +29,17 @@
  *   0x00        all LEDs (broadcast)
  *   0x01..0x03  LED 0..2 (LED index = address - 1)
  *   0x04..0x0A  animations (see anim.h)
+ *   0x0B        firmware version reply, device -> host (see send_version)
  *   0x10..0x13  auxiliary pins (see pins.h)
  *   0x7F        command record <0x7F> <cmd> <arg0> <arg1>; command 0x01 resets
  *               into the ROM USB bootloader so the host can reflash without
- *               touching the BOOT strap. */
+ *               touching the BOOT strap, command 0x02 asks for the version. */
 #define ADDR_ALL                    (0x00)
 #define ADDR_LED_BASE               (0x01)
+#define SYSEX_ADDR_VERSION          (0x0B)
 #define SYSEX_ADDR_COMMAND          (0x7F)
 #define SYSEX_CMD_ENTER_BOOTLOADER  (0x01)
+#define SYSEX_CMD_GET_VERSION       (0x02)
 
 /* set when a MIDI message changed the LED colors; the main loop shows them */
 static uint8_t flag_update_leds = 0;
@@ -82,6 +87,25 @@ static void enter_bootloader(void)
     }
 }
 
+/* Answer a version request with a regular record so the host can reuse the
+ * same parser as the LED records:
+ *
+ *     F0 13 37 0B <major> <minor> <patch> F7
+ *
+ * Each component is a 7-bit number. USB-MIDI carries three SysEx bytes per
+ * 4-byte event packet, so the message is split into CIN 0x04 / 0x04 / 0x06. */
+static void send_version(void)
+{
+    uint8_t packets[3][4] = {
+        {MIDI_CIN_SYSEX_START_CONT, MIDI_SYSEX_START, SYSEX_MANUFACTURER_ID_1, SYSEX_MANUFACTURER_ID_2},
+        {MIDI_CIN_SYSEX_START_CONT, SYSEX_ADDR_VERSION, (uint8_t)(atoi(VERSION_MAJOR) & 0x7F),
+         (uint8_t)(atoi(VERSION_MINOR) & 0x7F)},
+        {MIDI_CIN_SYSEX_END_2BYTE, (uint8_t)(atoi(VERSION_PATCH) & 0x7F), MIDI_SYSEX_END, 0x00},
+    };
+
+    USB_write((const uint8_t *)packets, sizeof(packets));
+}
+
 /* apply a complete SysEx message: F0 13 37 [<led> <r> <g> <b>]... F7 */
 static void finalize_sysex(void)
 {
@@ -97,6 +121,11 @@ static void finalize_sysex(void)
                     sysex_data[i + 2] == 0 && sysex_data[i + 3] == 0)
                 {
                     enter_bootloader();
+                }
+                else if (sysex_data[i + 1] == SYSEX_CMD_GET_VERSION &&
+                         sysex_data[i + 2] == 0 && sysex_data[i + 3] == 0)
+                {
+                    send_version();
                 }
                 continue;
             }
