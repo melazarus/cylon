@@ -15,7 +15,7 @@ The board speaks class-compliant **USB-MIDI**: the host drives everything with S
 - **3× side-emitting WS2812B** (`XL-4020RGBC-2812B`) — individually addressable RGB, arranged so light spills out sideways/around the board. (Note: the mechanical strength of these LEDs is not ideal; a small amount of super glue, or different LEDs, improves it.)
 - **USB bootloader + SWD** — flash over USB or via a WCH-LinkE / SWD probe.
 - **Boot button** — hold it while plugging in to enter the ROM bootloader; a MIDI command can also reboot into it without touching the board.
-- **4 spare GPIOs** — `PA0`–`PA3`, each usable as a push-pull output or a 20 kHz PWM output.
+- **4 spare GPIOs** — `PA0`–`PA3`, each usable as a push-pull output, a 20 kHz PWM output, or a 50 Hz RC servo output.
 - **Minimal BOM** — just 7 components to order, all available from LCSC.
 - **Open hardware** — full EasyEDA Pro project, schematic, PCB, Gerbers, and 3D model included.
 
@@ -78,7 +78,7 @@ A message may contain any number of 4-byte records; the last write wins. Every p
 | `0x01`–`0x03` | LED 0/1/2 | r, g, b |
 | `0x04`–`0x0A` | animation | base colour (wheels ignore it) |
 | `0x0B` | firmware version reply (device → host) | major, minor, patch |
-| `0x10`–`0x13` | `PA0`–`PA3` | type, level, ignored |
+| `0x10`–`0x13` | `PA0`–`PA3` | type, level, speed/ignored |
 | `0x7F` | command | cmd, arg0, arg1 |
 
 Unused/reserved addresses are ignored. The full protocol and the memory map live in [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
@@ -113,11 +113,11 @@ Animations are rendered on-device at 50 Hz; the host sends the record once.
 
 | Byte | Meaning |
 | ---- | ------- |
-| `<type>` | `0x00` push-pull output, `0x01` PWM output |
-| `<level>` | push-pull: `0x00` low / `0x01` high<br>PWM: `0x00` = 0 % … `0x7F` = 100 % |
-| last | ignored |
+| `<type>` | `0x00` push-pull output, `0x01` PWM output, `0x02` servo output |
+| `<level>` | push-pull: `0x00` low / `0x01` high<br>PWM: `0x00` = 0 % … `0x7F` = 100 % duty<br>servo: `0x00` = 0 % … `0x7F` = 100 % position |
+| `<extra>` | push-pull / PWM: ignored<br>servo: move time — `0x00` instant, `0x01`–`0x7F` = 100 ms … 12.7 s |
 
-A pin stays an input until its first record and can switch between push-pull and PWM at any time. PWM runs at 20 kHz. Pins are independent of the LEDs and do not stop a running animation.
+A pin stays an input until its first record and can switch modes at any time. Pins are independent of the LEDs and do not stop a running animation. PWM runs at 20 kHz; a servo uses a 50 Hz frame with a 0.5–2.5 ms pulse (narrow it with command `0x10` if the servo over-drives) and sweeps to the new position over the move time. Because `PA0`–`PA3` share one timer, PWM reverts to 50 Hz while any servo is active.
 
 ### Commands
 
@@ -127,6 +127,7 @@ Address `0x7F` is a command record `<0x7F> <cmd> <arg0> <arg1>`:
 | ------- | ------- |
 | `0x01` | reboot into the ROM USB bootloader |
 | `0x02` | request firmware version |
+| `0x10` | set the servo pulse range (`arg0` = min, `arg1` = max, 20 µs units) |
 
 Command `0x02` makes the device reply over the USB-MIDI IN endpoint with a normal record:
 
@@ -146,6 +147,7 @@ Larson scanner, cyan   F0 13 37 08 00 7F 7F F7
 Colour wheel (offset)  F0 13 37 09 00 00 00 F7
 PA0 high               F0 13 37 10 00 01 00 F7
 PA1 PWM 50%            F0 13 37 11 01 40 00 F7
+PA2 servo 50%, 1 s     F0 13 37 12 02 40 0A F7
 Reboot to bootloader   F0 13 37 7F 01 00 00 F7
 Request firmware ver.  F0 13 37 7F 02 00 00 F7
 ```
@@ -226,7 +228,7 @@ Pushing a `v<major>.<minor>.<patch>` tag runs [`.github/workflows/release.yml`](
 
 It uses **Web MIDI** for control and **WebUSB** for flashing, so it needs Chrome or Edge (desktop or Android) over HTTPS. Once deployed it is at `https://melazarus.github.io/cylon/`; the Pages workflow is [`.github/workflows/pages.yml`](.github/workflows/pages.yml) and the repository's Pages source must be set to **GitHub Actions**.
 
-## Command-line and single-file tools
+## Command-line tool
 
 [`tools/set_leds.py`](tools/set_leds.py) is a [uv](https://docs.astral.sh/uv/) / PEP 723 script (it pulls in `pygame` for its MIDI backend):
 
@@ -234,12 +236,15 @@ It uses **Web MIDI** for control and **WebUSB** for flashing, so it needs Chrome
 uv run tools/set_leds.py 0 ff0000     # LED 0 red
 uv run tools/set_leds.py all ffffff   # all LEDs white
 uv run tools/set_leds.py 0 red        # named colours
+uv run tools/set_leds.py --pin 1 --pwm 64                 # PA1 PWM, 50 %
+uv run tools/set_leds.py --pin 2 --servo 64 --speed 10    # PA2 servo 50 %, 1 s move
+uv run tools/set_leds.py --servo-range 500 2260           # narrow the servo pulse range
 uv run tools/set_leds.py --list       # list MIDI output ports
 uv run tools/set_leds.py --boot       # reboot into the ROM bootloader
 uv run tools/set_leds.py --version    # read the firmware version
 ```
 
-Named colours: `off`, `black`, `red`, `green`, `blue`, `white`, `yellow`, `cyan`, `magenta`, `orange`, `purple`, `pink`. The port is auto-detected by matching `"cylon"`; use `--port` if your system names it differently. [`tools/set_leds.html`](tools/set_leds.html) is a single-file Web MIDI page with the same LED/pin/animation controls for quick local use.
+Named colours: `off`, `black`, `red`, `green`, `blue`, `white`, `yellow`, `cyan`, `magenta`, `orange`, `purple`, `pink`. The port is auto-detected by matching `"cylon"`; use `--port` if your system names it differently.
 
 ## Repository layout
 
@@ -254,7 +259,7 @@ Named colours: `off`, `black`, `red`, `green`, `blue`, `white`, `yellow`, `cyan`
 ├── images/
 │   └── render_front.png      # Board render
 ├── public/                   # Static web tool (deployed to GitHub Pages)
-├── tools/                    # Python CLI + single-file browser tool
+├── tools/                    # Python CLI
 ├── LICENSE
 └── README.md
 ```

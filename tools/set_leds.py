@@ -4,7 +4,8 @@
 # dependencies = ["pygame"]
 # ///
 """
-Set the color of the Cylon's three WS2812 LEDs over USB MIDI.
+Set the color of the Cylon's three WS2812 LEDs, or drive the auxiliary pins,
+over USB MIDI.
 
 The firmware listens for a SysEx message of the form
 
@@ -21,6 +22,10 @@ Usage (uv installs pygame automatically):
     uv run tools/set_leds.py 2 0000ff        # LED 2 -> blue
     uv run tools/set_leds.py all ffffff      # all LEDs -> white
     uv run tools/set_leds.py 0 red           # named color
+    uv run tools/set_leds.py --pin 0 --high  # PA0 push-pull high
+    uv run tools/set_leds.py --pin 1 --pwm 64          # PA1 PWM, 50 %
+    uv run tools/set_leds.py --pin 2 --servo 64 --speed 10  # PA2 servo 50 %, 1 s move
+    uv run tools/set_leds.py --servo-range 500 2260        # narrow the servo range
     uv run tools/set_leds.py --list          # list MIDI output ports
     uv run tools/set_leds.py --port cylon 0 0000ff
     uv run tools/set_leds.py --boot          # reboot into the ROM bootloader
@@ -57,10 +62,17 @@ SYSEX_END = 0xF7
 COMMAND_ADDRESS = 0x7F
 CMD_ENTER_BOOTLOADER = 0x01
 CMD_GET_VERSION = 0x02
+CMD_SET_SERVO_RANGE = 0x10
 
 # The firmware answers a version request with a normal record:
 #   F0 13 37 0B <major> <minor> <patch> F7
 VERSION_ADDRESS = 0x0B
+
+# Auxiliary pin records: <addr> <type> <level> <extra>, addr 0x10..0x13 = PA0..PA3
+PIN_ADDRESS_BASE = 0x10
+PIN_TYPE_PUSH_PULL = 0x00
+PIN_TYPE_PWM = 0x01
+PIN_TYPE_SERVO = 0x02
 
 NAMED_COLORS = {
     "off": "000000",
@@ -94,6 +106,25 @@ def parse_color(value: str) -> tuple[int, int, int]:
 def scale7(color: tuple[int, int, int]) -> tuple[int, int, int]:
     """Scale 8-bit color down to the 7-bit SysEx data range."""
     return tuple(value >> 1 for value in color)
+
+
+def clamp7(value: int) -> int:
+    """Clamp a value to the 7-bit SysEx data range (0..127)."""
+    return max(0, min(0x7F, int(value)))
+
+
+def parse_pin(value: str) -> int:
+    """Parse a pin designator: 0-3 or PA0-PA3."""
+    text = value.strip().upper()
+    if text.startswith("PA"):
+        text = text[2:]
+    try:
+        pin = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("pin must be 0-3 or PA0-PA3")
+    if not 0 <= pin <= 3:
+        raise argparse.ArgumentTypeError("pin must be 0-3 or PA0-PA3")
+    return pin
 
 
 def output_devices() -> list[tuple[int, str]]:
@@ -222,6 +253,43 @@ def main() -> int:
         action="store_true",
         help="request and print the firmware version",
     )
+    parser.add_argument(
+        "--pin",
+        type=parse_pin,
+        metavar="PIN",
+        help="auxiliary pin to drive: 0-3 or PA0-PA3",
+    )
+    parser.add_argument(
+        "--high", action="store_true", help="with --pin: drive the pin high"
+    )
+    parser.add_argument(
+        "--low", action="store_true", help="with --pin: drive the pin low"
+    )
+    parser.add_argument(
+        "--pwm",
+        type=int,
+        metavar="LEVEL",
+        help="with --pin: PWM duty, 0-127 (0-100%%)",
+    )
+    parser.add_argument(
+        "--servo",
+        type=int,
+        metavar="POS",
+        help="with --pin: servo position, 0-127 (0-100%%)",
+    )
+    parser.add_argument(
+        "--speed",
+        type=int,
+        metavar="N",
+        help="with --servo: move time in 100 ms units (0 = instant, 1-127)",
+    )
+    parser.add_argument(
+        "--servo-range",
+        nargs=2,
+        type=int,
+        metavar=("MIN_US", "MAX_US"),
+        help="set the servo pulse range in microseconds and exit",
+    )
     args = parser.parse_args()
 
     pygame.midi.init()
@@ -301,9 +369,76 @@ def main() -> int:
             print(f"{output_name!r}: firmware {version[0]}.{version[1]}.{version[2]}")
             return 0
 
+        if args.servo_range is not None:
+            min_us, max_us = args.servo_range
+            min_units = clamp7(round(min_us / 20))
+            max_units = clamp7(round(max_us / 20))
+            if max_units <= min_units:
+                parser.error("--servo-range MIN must be smaller than MAX")
+            device_id, name = find_device(args.port)
+            output = pygame.midi.Output(device_id)
+            try:
+                message = [
+                    SYSEX_START,
+                    *MANUFACTURER_ID,
+                    COMMAND_ADDRESS,
+                    CMD_SET_SERVO_RANGE,
+                    min_units,
+                    max_units,
+                    SYSEX_END,
+                ]
+                output.write_sys_ex(pygame.midi.time(), message)
+                time.sleep(0.05)
+            finally:
+                output.close()
+            print(f"set servo range {min_units * 20}-{max_units * 20} us on {name!r}")
+            return 0
+
+        if args.pin is not None:
+            actions = [args.high, args.low, args.pwm is not None, args.servo is not None]
+            if sum(actions) != 1:
+                parser.error(
+                    "--pin requires exactly one of --high, --low, --pwm or --servo"
+                )
+            if args.speed is not None and args.servo is None:
+                parser.error("--speed is only valid with --servo")
+
+            if args.high or args.low:
+                level = 0x01 if args.high else 0x00
+                record = [PIN_TYPE_PUSH_PULL, level, 0x00]
+                description = "high" if args.high else "low"
+            elif args.pwm is not None:
+                level = clamp7(args.pwm)
+                record = [PIN_TYPE_PWM, level, 0x00]
+                description = f"PWM {round(level / 127 * 100)}%"
+            else:
+                position = clamp7(args.servo)
+                speed = clamp7(args.speed) if args.speed is not None else 0
+                record = [PIN_TYPE_SERVO, position, speed]
+                description = f"servo {round(position / 127 * 100)}%"
+                if speed:
+                    description += f", move {speed * 100} ms"
+
+            device_id, name = find_device(args.port)
+            output = pygame.midi.Output(device_id)
+            try:
+                message = [
+                    SYSEX_START,
+                    *MANUFACTURER_ID,
+                    PIN_ADDRESS_BASE + args.pin,
+                    *record,
+                    SYSEX_END,
+                ]
+                output.write_sys_ex(pygame.midi.time(), message)
+                time.sleep(0.05)
+            finally:
+                output.close()
+            print(f"set PA{args.pin} {description} on {name!r}")
+            return 0
+
         if args.led is None or args.color is None:
             parser.error(
-                "LED and COLOR are required (or use --list, --boot or --version)"
+                "LED and COLOR are required (or use --pin, --list, --boot or --version)"
             )
 
         try:

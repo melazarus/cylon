@@ -31,6 +31,7 @@ export class CylonMidi {
   static PIN_ADDRESS = [0x10, 0x11, 0x12, 0x13]; // PA0..PA3
   static PIN_PUSH_PULL = 0x00;
   static PIN_PWM = 0x01;
+  static PIN_SERVO = 0x02;
   static SYSEX_START = 0xf0;
   static SYSEX_END = 0xf7;
 
@@ -132,6 +133,30 @@ export class CylonMidi {
     }
     const duty = Math.max(0, Math.min(0x7f, Math.round(level)));
     this.send([CylonMidi.PIN_ADDRESS[index], CylonMidi.PIN_PWM, duty, 0x00]);
+  }
+
+  /**
+   * Drive an auxiliary pin as a servo.
+   * @param {number} index 0..3 (PA0..PA3)
+   * @param {number} position 0..127 = 0..100%
+   * @param {number} speed move time in 100 ms units; 0 = instant
+   */
+  setServo(index, position, speed = 0) {
+    if (index < 0 || index >= CylonMidi.PIN_ADDRESS.length) {
+      throw new Error(`Invalid pin index: ${index}`);
+    }
+    const pos = Math.max(0, Math.min(0x7f, Math.round(position)));
+    const move = Math.max(0, Math.min(0x7f, Math.round(speed)));
+    this.send([CylonMidi.PIN_ADDRESS[index], CylonMidi.PIN_SERVO, pos, move]);
+  }
+
+  /**
+   * Set the global servo pulse range, in microseconds. Narrow it if a servo
+   * reaches its mechanical limit before 100 % (it buzzes against the end stop).
+   */
+  setServoRange(minUs, maxUs) {
+    const units = (us) => Math.max(0, Math.min(0x7f, Math.round(us / 20)));
+    this.send([0x7f, 0x10, units(minUs), units(maxUs)]);
   }
 
   /** Reboot the board into the WCH ROM USB bootloader (for reflashing). */

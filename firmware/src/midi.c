@@ -40,6 +40,7 @@
 #define SYSEX_ADDR_COMMAND          (0x7F)
 #define SYSEX_CMD_ENTER_BOOTLOADER  (0x01)
 #define SYSEX_CMD_GET_VERSION       (0x02)
+#define SYSEX_CMD_SET_SERVO_RANGE   (0x10)
 
 /* set when a MIDI message changed the LED colors; the main loop shows them */
 static uint8_t flag_update_leds = 0;
@@ -127,6 +128,10 @@ static void finalize_sysex(void)
                 {
                     send_version();
                 }
+                else if (sysex_data[i + 1] == SYSEX_CMD_SET_SERVO_RANGE)
+                {
+                    pins_set_servo_range(sysex_data[i + 2], sysex_data[i + 3]);
+                }
                 continue;
             }
 
@@ -141,7 +146,7 @@ static void finalize_sysex(void)
                 /* colours shift left to use the full 8-bit LED range (0-254) */
                 anim_start(address, raw1 << 1, raw2 << 1, raw3 << 1);
             }
-            else if (pins_apply(address, raw1, raw2))
+            else if (pins_apply(address, raw1, raw2, raw3))
             {
                 /* auxiliary pin record: applied, nothing to show */
             }
@@ -238,5 +243,6 @@ void midi_run(void)
         }
 
         anim_tick();
+        pins_tick();
     }
 }

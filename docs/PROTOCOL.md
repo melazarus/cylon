@@ -48,7 +48,7 @@ selects what the record does:
 | `0x04`–`0x0A` | animation | see §1.5 | | |
 | `0x0B` | firmware version reply (device → host) | major | minor | patch |
 | `0x0C`–`0x0F` | *reserved* | | | |
-| `0x10`–`0x13` | pin PA0–PA3 | type | level | ignored |
+| `0x10`–`0x13` | pin PA0–PA3 | type | level | speed / ignored |
 | `0x14`–`0x7E` | *reserved* | | | |
 | `0x7F` | command | cmd | arg0 | arg1 |
 
@@ -87,13 +87,20 @@ Addresses `0x10`–`0x13` map to **PA0–PA3**:
 
 | Byte | Meaning |
 | ---- | ------- |
-| `<type>` | `0x00` push-pull output, `0x01` PWM output |
-| `<level>` | push-pull: `0x00` low / `0x01` high<br>PWM: `0x00` = 0 % … `0x7F` = 100 % |
-| last | ignored |
+| `<type>` | `0x00` push-pull output, `0x01` PWM output, `0x02` servo output |
+| `<level>` | push-pull: `0x00` low / `0x01` high<br>PWM: `0x00` = 0 % … `0x7F` = 100 % duty<br>servo: `0x00` = 0 % … `0x7F` = 100 % position |
+| `<extra>` | push-pull / PWM: ignored<br>servo: move time — `0x00` = instant, `0x01`–`0x7F` = 100 ms … 12.7 s |
 
-A pin stays an input until its first record and can switch between push-pull and
-PWM at any time. PWM is 20 kHz on `TIM2_CH1..CH4`. Pins are independent of the
-LEDs and do **not** stop a running animation.
+A pin stays an input until its first record and can switch between modes at any
+time. Pins are independent of the LEDs and do **not** stop a running animation.
+
+- **PWM** runs at 20 kHz.
+- **Servo** drives a standard RC servo: a 50 Hz frame with a 0.5 ms (0 %) to
+  2.5 ms (100 %) pulse (configurable with command `0x10`). A non-zero move time
+  sweeps the position linearly from where it is now to the new target.
+- PA0–PA3 are the four channels of **one timer** (`TIM2`), so PWM (20 kHz) and
+  servo (50 Hz) cannot run at once: while at least one servo is active the
+  timer runs at 50 Hz and any PWM pin is also 50 Hz (its duty is unchanged).
 
 ## 1.7 Commands
 
@@ -103,6 +110,7 @@ Address `0x7F` is a command record `<0x7F> <cmd> <arg0> <arg1>`:
 | ------- | ------- | 
 | `0x01` | reboot into the ROM USB bootloader |
 | `0x02` | request firmware version (reply: record `0x0B`) |
+| `0x10` | set the servo pulse range (`arg0` = min, `arg1` = max, 20 µs units) |
 
 Unknown commands and non-zero arguments are ignored.
 
@@ -116,6 +124,14 @@ F0 13 37 0B <major> <minor> <patch> F7
 Each component is a 7-bit number. The current firmware is `1.0.0`, so the
 reply is `F0 13 37 0B 01 00 00 F7`. The device answers once per matching `0x02`
 record; `arg0` and `arg1` must be zero, like every other command.
+
+Command `0x10` sets the pulse range used by servo pins (type `0x02`). Both
+arguments are in **20 µs units** (`0x00`–`0x7F` = 0–2540 µs); the default is
+`0x19` (25 → 500 µs) to `0x7D` (125 → 2500 µs). Narrow it if a servo reaches
+its mechanical limit before 100 %: a servo that buzzes above ≈2.26 ms can be
+limited to `F0 13 37 7F 10 19 71 F7` (500–2260 µs), after which position `0x7F`
+is that maximum instead of over-driving the servo. The setting is runtime only
+and applies to every servo pin.
 
 ## 1.8 Interaction rules
 
@@ -134,6 +150,7 @@ Larson scanner, cyan   F0 13 37 08 00 7F 7F F7
 Colour wheel (offset)  F0 13 37 09 00 00 00 F7
 PA0 high               F0 13 37 10 00 01 00 F7
 PA1 PWM 50%            F0 13 37 11 01 40 00 F7
+PA2 servo 50%, 1 s     F0 13 37 12 02 40 0A F7
 Reboot to bootloader   F0 13 37 7F 01 00 00 F7
 Request firmware ver.  F0 13 37 7F 02 00 00 F7
 Version reply (1.0.0)  F0 13 37 0B 01 00 00 F7   (device → host)

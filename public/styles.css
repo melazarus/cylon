@@ -423,9 +423,21 @@ input[type="range"] {
   gap: 12px;
 }
 
+.servo-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.servo-range input[type="number"] {
+  width: 74px;
+}
+
 .pin {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 46px auto;
+  grid-template-columns: 48px 88px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
 }
@@ -436,11 +448,64 @@ input[type="range"] {
   color: var(--muted);
 }
 
+.pin-mode {
+  font: inherit;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.pin-body {
+  min-width: 0;
+}
+
+.pin-field {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pin.mode-digital .pin-digital,
+.pin.mode-pwm .pin-pwm,
+.pin.mode-servo .pin-servo {
+  display: flex;
+}
+
+.pin-field input[type="range"] {
+  flex: 1 1 80px;
+  min-width: 70px;
+}
+
 .pin-val {
+  min-width: 34px;
   text-align: right;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.74rem;
   color: var(--muted);
+}
+
+.pin-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pin-move input[type="number"] {
+  width: 48px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+}
+
+.pin-speed-label {
+  min-width: 40px;
 }
 
 /* -------------------------------------------------------------- firmware */
@@ -535,7 +600,7 @@ input[type="range"] {
     padding: 15px;
   }
   .pin {
-    grid-template-columns: 48px minmax(0, 1fr) 42px auto;
+    grid-template-columns: 44px 80px minmax(0, 1fr);
   }
 }
 

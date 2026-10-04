@@ -71,7 +71,15 @@
     <section class="card">
       <div class="card-head">
         <h2>I/O pins</h2>
-        <span class="muted small">PA0–PA3 · output only</span>
+        <span class="muted small">PA0–PA3 · digital / PWM / servo</span>
+      </div>
+      <div class="servo-range">
+        <span class="muted small">Servo range</span>
+        <input type="number" id="servo-min" value="500" min="0" max="2540" step="20" aria-label="Servo minimum pulse width (microseconds)">
+        <span class="muted small">–</span>
+        <input type="number" id="servo-max" value="2500" min="0" max="2540" step="20" aria-label="Servo maximum pulse width (microseconds)">
+        <span class="muted small">µs</span>
+        <button type="button" id="servo-apply" class="btn ghost small">Apply</button>
       </div>
       <div id="pins" class="pins"></div>
     </section>

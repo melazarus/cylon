@@ -32,6 +32,9 @@ const els = {
   fwPhase: $("fw-phase"),
   fwLog: $("fw-log"),
   fwStatus: $("fw-status"),
+  servoMin: $("servo-min"),
+  servoMax: $("servo-max"),
+  servoApply: $("servo-apply"),
 };
 
 const state = {
@@ -185,40 +188,110 @@ function buildAnimations() {
 
 function buildPins() {
   const names = ["PA0", "PA1", "PA2", "PA3"];
+
   names.forEach((name, index) => {
     const row = document.createElement("div");
-    row.className = "pin";
+    row.className = "pin mode-digital";
     row.innerHTML = `
       <span class="pin-name">${name}</span>
-      <input type="range" min="0" max="127" value="0" aria-label="${name} PWM">
-      <span class="pin-val">0%</span>
-      <button type="button" class="btn small" aria-pressed="false" title="Toggle push-pull high/low">Low</button>`;
+      <select class="pin-mode" aria-label="${name} mode">
+        <option value="digital">Digital</option>
+        <option value="pwm">PWM</option>
+        <option value="servo">Servo</option>
+      </select>
+      <div class="pin-body">
+        <div class="pin-field pin-digital">
+          <button type="button" class="btn small" aria-pressed="false">Low</button>
+        </div>
+        <div class="pin-field pin-pwm">
+          <input type="range" min="0" max="127" value="0" aria-label="${name} PWM duty">
+          <span class="pin-val">0%</span>
+        </div>
+        <div class="pin-field pin-servo">
+          <input type="range" min="0" max="127" value="0" aria-label="${name} servo position">
+          <span class="pin-val">0%</span>
+          <label class="pin-move" title="Move time: 0 = instant, otherwise ×100 ms">move
+            <input type="number" min="0" max="127" value="0" aria-label="${name} servo move time">
+            <span class="pin-speed-label">instant</span>
+          </label>
+        </div>
+      </div>`;
 
-    const slider = row.querySelector("input[type=range]");
-    const value = row.querySelector(".pin-val");
-    const button = row.querySelector("button");
+    const mode = row.querySelector(".pin-mode");
+    const digitalBtn = row.querySelector(".pin-digital button");
+    const pwmSlider = row.querySelector(".pin-pwm input[type=range]");
+    const pwmVal = row.querySelector(".pin-pwm .pin-val");
+    const servoSlider = row.querySelector(".pin-servo input[type=range]");
+    const servoVal = row.querySelector(".pin-servo .pin-val");
+    const speedInput = row.querySelector(".pin-move input");
+    const speedLabel = row.querySelector(".pin-speed-label");
 
-    button.addEventListener("click", () => {
+    const percent = (value) => `${Math.round((value / 127) * 100)}%`;
+
+    const applyCurrent = () => {
       if (!state.connected) return;
-      const on = button.getAttribute("aria-pressed") !== "true";
-      guardSend(() => cylon.setPin(index, on));
-      button.setAttribute("aria-pressed", String(on));
-      button.textContent = on ? "High" : "Low";
+      if (mode.value === "digital") {
+        guardSend(() => cylon.setPin(index, digitalBtn.getAttribute("aria-pressed") === "true"));
+      } else if (mode.value === "pwm") {
+        guardSend(() => cylon.setPinPwm(index, Number(pwmSlider.value)));
+      } else {
+        guardSend(() => cylon.setServo(index, Number(servoSlider.value), Number(speedInput.value)));
+      }
+    };
+
+    mode.addEventListener("change", () => {
+      row.className = `pin mode-${mode.value}`;
+      applyCurrent();
+    });
+
+    digitalBtn.addEventListener("click", () => {
+      const on = digitalBtn.getAttribute("aria-pressed") !== "true";
+      digitalBtn.setAttribute("aria-pressed", String(on));
+      digitalBtn.textContent = on ? "High" : "Low";
+      if (state.connected) guardSend(() => cylon.setPin(index, on));
     });
 
     const sendPwm = throttle(() => {
       if (!state.connected) return;
-      guardSend(() => cylon.setPinPwm(index, Number(slider.value)));
+      guardSend(() => cylon.setPinPwm(index, Number(pwmSlider.value)));
     }, 40);
-
-    slider.addEventListener("input", () => {
-      value.textContent = `${Math.round((Number(slider.value) / 127) * 100)}%`;
+    pwmSlider.addEventListener("input", () => {
+      pwmVal.textContent = percent(Number(pwmSlider.value));
       sendPwm();
     });
 
+    const sendServo = throttle(() => {
+      if (!state.connected) return;
+      guardSend(() => cylon.setServo(index, Number(servoSlider.value), Number(speedInput.value)));
+    }, 40);
+    servoSlider.addEventListener("input", () => {
+      servoVal.textContent = percent(Number(servoSlider.value));
+      sendServo();
+    });
+    speedInput.addEventListener("input", () => {
+      const units = Math.max(0, Math.min(127, Number(speedInput.value) || 0));
+      speedLabel.textContent = units === 0 ? "instant" : `${(units * 0.1).toFixed(1)} s`;
+      sendServo();
+    });
+
     els.pins.appendChild(row);
-    state.midiControls.push(slider, button);
+    state.midiControls.push(mode, digitalBtn, pwmSlider, servoSlider, speedInput);
   });
+}
+
+/* --------------------------------------------------------- servo range */
+
+function applyServoRange() {
+  if (!state.connected) return;
+  const min = Number(els.servoMin.value);
+  const max = Number(els.servoMax.value);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    setConnStatus("Servo range: MAX must be greater than MIN", "err");
+    return;
+  }
+  guardSend(() => cylon.setServoRange(min, max));
+  const units = (us) => Math.round(us / 20);
+  setConnStatus(`Servo range ${min}–${max} µs (${units(min)}–${units(max)})`, "ok");
 }
 
 /* ------------------------------------------------------------ connection */
@@ -452,6 +525,8 @@ function bindEvents() {
 
   els.readVersion.addEventListener("click", () => readVersion());
 
+  els.servoApply.addEventListener("click", applyServoRange);
+
   els.fwRefresh.addEventListener("click", loadReleases);
 
   els.fwSelect.addEventListener("change", () => {
@@ -479,6 +554,7 @@ buildPins();
 bindEvents();
 updateSupportPill();
 setMidiControlsEnabled(false);
+state.midiControls.push(els.servoMin, els.servoMax, els.servoApply);
 loadReleases();
 
 // Warm up the (external) flasher so the CDN fetch does not consume the user

@@ -51,7 +51,7 @@ static uint32_t last_render_ms;
 static uint16_t tick_last;
 static uint32_t tick_high;
 
-static uint32_t anim_millis(void)
+uint32_t anim_millis(void)
 {
     uint16_t now = TIM3->CNT;
 

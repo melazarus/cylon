@@ -21,6 +21,9 @@
 /* Initialise the animation time base (a free-running 1 kHz timer). */
 void anim_init(void);
 
+/* Milliseconds since boot, from the free-running 1 kHz timer. */
+uint32_t anim_millis(void);
+
 /* Start the animation for the given address byte with a base colour. */
 void anim_start(uint8_t address, uint8_t r, uint8_t g, uint8_t b);
 

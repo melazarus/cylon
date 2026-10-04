@@ -14,7 +14,7 @@ Import("env")  # noqa: F821  (provided by PlatformIO/SCons)
 import os
 import re
 
-DEFAULT_VERSION = "1.0.0"
+DEFAULT_VERSION = "1.1.0"
 
 
 def parse_version(value: str) -> tuple[str, str, str]:
