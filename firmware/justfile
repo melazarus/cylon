@@ -1,0 +1,19 @@
+# build the release firmware
+release:
+    pio run -e release
+
+# build the debug firmware
+debug:
+    pio run -e debug
+
+# flash the release firmware over ISP
+# Use Zadig to Bind the usbID to WinUSB.
+# OR use WCHISPStudio instead of -t upload
+upload: release
+    pio run -e release -t upload
+
+# remove build artifacts
+clean:
+    pio run -t clean
+
+default: release
