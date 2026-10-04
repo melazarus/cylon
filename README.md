@@ -154,6 +154,8 @@ Request firmware ver.  F0 13 37 7F 02 00 00 F7
 
 The PlatformIO project lives in [`firmware/`](firmware), with a small vendored USB-MIDI stack in `firmware/lib/CH32X035_USB_MIDI`.
 
+See [`docs/BUILD.md`](docs/BUILD.md) for the full build, versioning and release process.
+
 | File | Responsibility |
 | ---- | -------------- |
 | `main.c` | boot sequence, then `midi_run()` |
@@ -245,6 +247,7 @@ Named colours: `off`, `black`, `red`, `green`, `blue`, `white`, `yellow`, `cyan`
 .
 ├── .github/workflows/        # GitHub Pages deploy + tagged firmware releases
 ├── docs/
+│   ├── BUILD.md              # build, versioning & release guide
 │   └── PROTOCOL.md           # USB-MIDI protocol reference
 ├── firmware/                 # PlatformIO firmware (CH32X035) + version.py
 ├── hardware/                 # EasyEDA Pro project, schematic, PCB, gerbers, BOM, 3D
