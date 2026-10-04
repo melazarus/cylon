@@ -157,15 +157,23 @@ export async function programBootloader(transport, firmware, { onProgress, onLog
     onLog(`Connected: ${info.name} (chipId 0x${info.chipId.toString(16)}, type 0x${info.deviceType.toString(16)})`);
     if (info.codeFlashProtected) onLog("Note: the code flash reports as read-protected.");
 
+    // Parse first so the erase size is based on the real image (a .hex/.elf local
+    // file is text, so its byte length is not the flash size).
+    const image =
+      typeof File !== "undefined" && firmware instanceof File
+        ? await WchIsp.readFirmwareFile(firmware)
+        : WchIsp.parseFirmware(firmware);
+
     // The reference wchisp CLI erases `binary.len()/1024 + 1` sectors. Doing
     // that here (and telling wchisp-web not to erase) matches it exactly;
     // wchisp-web's own erase is one sector short, which leaves the final sector
     // unerased on the CH32X035 and makes verification fail near the end.
-    const sectors = Math.ceil(firmware.length / 1024) + 1;
+    const sectors = Math.ceil(image.data.length / 1024) + 1;
+    onLog(`Image size: ${image.data.length} bytes`);
     onLog(`Erasing ${sectors} sector(s)…`);
     await isp.eraseCode(sectors, "sectors", onProgress);
 
-    await isp.flash(firmware, {
+    await isp.flash(image, {
       erase: false,
       verify: true,
       reset: true,

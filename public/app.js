@@ -416,9 +416,10 @@ async function loadReleases() {
     });
     els.fwSelect.disabled = false;
     els.fwSelect.selectedIndex = 0;
-    state.selectedRelease = state.releases[0];
-    state.localFirmware = null;
-    setFirmwareStatus("");
+    if (!state.localFirmware) {
+      state.selectedRelease = state.releases[0];
+      setFirmwareStatus("");
+    }
   } catch (err) {
     els.fwSelect.innerHTML = `<option value="">Releases unavailable</option>`;
     setFirmwareStatus(err.message, "err");
@@ -466,7 +467,7 @@ async function flash() {
     let firmware;
     if (state.localFirmware) {
       onLog(`Reading local file ${state.localFirmware.name}…`);
-      firmware = new Uint8Array(await state.localFirmware.arrayBuffer());
+      firmware = state.localFirmware; // the flasher reads .bin/.hex/.elf by name
     } else {
       onLog(`Downloading ${state.selectedRelease.name}…`);
       firmware = await downloadFirmware(state.selectedRelease);

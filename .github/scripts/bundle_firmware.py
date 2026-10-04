@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.request
 
 REPO = os.environ["GITHUB_REPOSITORY"]
 TOKEN = os.environ.get("GH_TOKEN", "")
+# Set by pages.yml on a release event so we can wait out the API's eventual
+# consistency before bundling.
+EXPECTED_TAG = os.environ.get("EXPECTED_TAG", "").strip()
 OUT_DIR = os.path.join("public", "firmware")
 MANIFEST = os.path.join(OUT_DIR, "releases.json")
 
@@ -44,11 +48,25 @@ def download(asset_url: str, dest: str) -> None:
             out.write(chunk)
 
 
+def list_releases() -> list:
+    """Fetch releases, waiting for EXPECTED_TAG if the release event fired before
+    the API listed it (it can lag a second or two behind `published`)."""
+    for _ in range(12):
+        releases = api("releases?per_page=100")
+        if not EXPECTED_TAG:
+            return releases
+        if any(r.get("tag_name") == EXPECTED_TAG and not r.get("draft") for r in releases):
+            return releases
+        print(f"waiting for {EXPECTED_TAG} to appear in the releases API...")
+        time.sleep(5)
+    return api("releases?per_page=100")
+
+
 def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
 
     manifest = []
-    for release in api("releases?per_page=100"):
+    for release in list_releases():
         if release.get("draft"):
             continue
         assets = [a for a in release.get("assets", []) if a["name"].lower().endswith(".bin")]

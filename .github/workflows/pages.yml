@@ -33,6 +33,7 @@ jobs:
       - name: Bundle release firmware
         env:
           GH_TOKEN: ${{ github.token }}
+          EXPECTED_TAG: ${{ github.event.release.tag_name }}
         run: python3 .github/scripts/bundle_firmware.py
 
       - name: Configure Pages
