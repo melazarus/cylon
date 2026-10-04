@@ -75,7 +75,7 @@ static uint8_t apply_color(uint8_t address, uint8_t r, uint8_t g, uint8_t b)
 }
 
 /* Set the flash boot-mode flag and reset. The chip restarts into the factory
- * ROM USB bootloader (WCH ISP, 1A86:8010) instead of the user application, so
+ * ROM USB bootloader (WCH ISP, 0x4348/0x1a86:0x55e0) instead of the user application, so
  * the host can flash new firmware without the BOOT strap. Never returns. */
 static void enter_bootloader(void)
 {

@@ -1,0 +1,53 @@
+name: Release firmware
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-8cf3b51c0ee537756a04c28336f1466e03424020
+
+      - name: Install PlatformIO and the CH32V platform
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+          pio pkg install -g -p "https://github.com/Community-PIO-CH32V/platform-ch32v.git#8cf3b51c0ee537756a04c28336f1466e03424020"
+
+      - name: Build release firmware
+        working-directory: firmware
+        env:
+          CYLON_VERSION: ${{ github.ref_name }}
+        run: pio run -e release
+
+      - name: Stage release assets
+        run: |
+          mkdir -p dist
+          cp firmware/.pio/build/release/firmware.bin dist/firmware.bin
+          cp firmware/.pio/build/release/firmware.bin "dist/cylon-${GITHUB_REF_NAME}.bin"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            dist/firmware.bin
+            dist/cylon-*.bin

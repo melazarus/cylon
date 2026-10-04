@@ -251,7 +251,7 @@ def main() -> int:
                 output.close()
             print(
                 f"asked {name!r} to reboot into its ROM bootloader; it will "
-                "re-enumerate as a WCH ISP device (1A86:8010)"
+                "re-enumerate as a WCH ISP device (4348:55e0 / 1a86:55e0)"
             )
             print("now flash with: cd firmware && pio run -e release -t upload")
             return 0

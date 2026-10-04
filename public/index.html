@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Cylon — LED &amp; firmware control</title>
+  <meta name="description" content="Control the Cylon USB notification light: LED colours, animations and I/O pins over USB-MIDI, plus firmware updates over WebUSB.">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="./">
+      <span class="brand-leds" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand-text">
+        <strong>Cylon</strong>
+        <small>USB notification light</small>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <span id="support" class="pill muted">Checking browser…</span>
+      <a class="pill link" href="https://github.com/melazarus/cylon" target="_blank" rel="noreferrer">GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Connection</h2>
+      <span id="conn-status" class="status">Not connected</span>
+    </div>
+    <div class="row">
+      <label for="port">MIDI output</label>
+      <select id="port" disabled>
+        <option value="">Connect to list ports</option>
+      </select>
+      <button id="connect" class="btn primary" type="button">Connect</button>
+    </div>
+    <div class="row">
+      <span class="muted small">Firmware</span>
+      <strong id="fw-version" class="mono">—</strong>
+      <button id="read-version" class="btn ghost small" type="button" disabled>Read version</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head">
+        <h2>LEDs</h2>
+        <span class="muted small">static colour</span>
+      </div>
+      <div id="leds" class="led-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Animations</h2>
+        <span class="muted small">on-device</span>
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <input type="color" id="anim-color" value="#ff0000" aria-label="Animation colour">
+        <div id="anims" class="anim-buttons"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>I/O pins</h2>
+        <span class="muted small">PA0–PA3 · output only</span>
+      </div>
+      <div id="pins" class="pins"></div>
+    </section>
+  </div>
+
+  <section class="card firmware-card">
+    <div class="card-head">
+      <h2>Firmware update</h2>
+      <span id="fw-status" class="status"></span>
+    </div>
+    <p class="muted small">
+      Flashes the board over USB through the ROM bootloader. WebUSB needs a Chromium
+      browser (Chrome or Edge, desktop or Android) and, on Windows, the
+      <a href="https://zadig.akeo.ie/" target="_blank" rel="noreferrer">WinUSB driver</a> for the bootloader.
+    </p>
+
+    <div class="row">
+      <label for="fw-select">Version</label>
+      <select id="fw-select" disabled>
+        <option value="">Loading releases…</option>
+      </select>
+      <button id="fw-refresh" class="btn ghost small" type="button">Refresh</button>
+      <label class="file-label btn ghost small" for="fw-file">
+        Local file
+        <input id="fw-file" type="file" accept=".bin,.hex,.elf" hidden>
+      </label>
+    </div>
+
+    <label class="check" for="fw-boot">
+      <input type="checkbox" id="fw-boot" checked>
+      Reboot board into bootloader first
+    </label>
+
+    <div class="row">
+      <button id="fw-flash" class="btn magenta" type="button" disabled>Flash firmware</button>
+      <div class="progress" role="progressbar" aria-label="Flash progress">
+        <div id="fw-progress" class="progress-bar"></div>
+      </div>
+      <span id="fw-phase" class="muted small"></span>
+    </div>
+
+    <pre id="fw-log" class="log" aria-live="polite"></pre>
+  </section>
+
+  <section class="card help">
+    <details>
+      <summary>Setup notes &amp; troubleshooting</summary>
+      <ul>
+        <li><strong>Web MIDI</strong> (LEDs, animations, pins) works in Chrome, Edge and other Chromium browsers over HTTPS. iOS Safari and Firefox are not supported.</li>
+        <li><strong>Windows flashing:</strong> install the WinUSB driver for the WCH ISP device with <a href="https://zadig.akeo.ie/" target="_blank" rel="noreferrer">Zadig</a> (select the device, choose WinUSB).</li>
+        <li><strong>Linux flashing:</strong> allow access to the bootloader with a udev rule:
+          <br><code>SUBSYSTEM=="usb", ATTRS{idVendor}=="4348", ATTRS{idProduct}=="55e0", MODE="0666"</code>
+        </li>
+        <li><strong>Stuck after flashing?</strong> Unplug the board, hold the BOOT button, plug it back in, then connect and flash again.</li>
+      </ul>
+    </details>
+  </section>
+
+</main>
+
+<footer class="wrap footer">
+  <p>
+    Protocol <code>F0 13 37 &lt;address&gt; &lt;b1&gt; &lt;b2&gt; &lt;b3&gt; F7</code> — see the
+    <a href="https://github.com/melazarus/cylon/blob/main/docs/PROTOCOL.md" target="_blank" rel="noreferrer">protocol reference</a>.
+  </p>
+  <p class="muted">
+    Firmware flashing uses <a href="https://github.com/DrSkunk/wchisp-web" target="_blank" rel="noreferrer">wchisp-web</a>
+    (GPL-2.0-only), loaded on demand from unpkg and not part of this repository.
+  </p>
+</footer>
+
+<noscript>
+  <p class="wrap">This page needs JavaScript to talk to your Cylon.</p>
+</noscript>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

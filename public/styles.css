@@ -1,0 +1,550 @@
+:root {
+  color-scheme: dark;
+  --bg: #0a0d12;
+  --panel: #151c27;
+  --panel-2: #1b2431;
+  --line: #26313f;
+  --line-soft: #1e2733;
+  --ink: #e9eef7;
+  --muted: #8ba0b8;
+  --accent: #4aa8ff;
+  --accent-2: #ff4ac1;
+  --ok: #3ddc97;
+  --err: #ff6b6b;
+  --warn: #ffb454;
+  --radius: 14px;
+  --shadow: 0 12px 34px rgba(0, 0, 0, 0.38);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, system-ui, sans-serif;
+  line-height: 1.5;
+  background-color: var(--bg);
+  /* subtle cross-hatch: azure vertical lines, magenta horizontal lines */
+  background-image:
+    radial-gradient(900px 480px at 10% -10%, rgba(74, 168, 255, 0.12), transparent 60%),
+    radial-gradient(720px 440px at 102% 0%, rgba(255, 74, 193, 0.1), transparent 55%),
+    linear-gradient(to right, rgba(74, 168, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 74, 193, 0.04) 1px, transparent 1px);
+  background-size: auto, auto, 34px 34px, 34px 34px;
+  background-attachment: fixed;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 28px);
+}
+
+code,
+.mono {
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SF Mono", monospace;
+  font-size: 0.92em;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ---------------------------------------------------------------- topbar */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(10, 13, 18, 0.78);
+  backdrop-filter: blur(12px);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 12px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-leds {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.brand-leds i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  animation: cylon-chase 1.8s ease-in-out infinite;
+}
+
+.brand-leds i:nth-child(1) {
+  background: #ff5252;
+  box-shadow: 0 0 10px #ff5252;
+}
+.brand-leds i:nth-child(2) {
+  background: #3ddc97;
+  box-shadow: 0 0 10px #3ddc97;
+  animation-delay: 0.2s;
+}
+.brand-leds i:nth-child(3) {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation-delay: 0.4s;
+}
+
+@keyframes cylon-chase {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.brand-text strong {
+  display: block;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+}
+.brand-text small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ----------------------------------------------------------------- chips */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(21, 28, 39, 0.7);
+  color: var(--ink);
+  font-size: 0.76rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pill.muted {
+  color: var(--muted);
+}
+.pill.ok {
+  color: var(--ok);
+  border-color: rgba(61, 220, 151, 0.4);
+}
+.pill.err {
+  color: var(--err);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+.pill.link:hover {
+  border-color: var(--accent);
+}
+
+/* ----------------------------------------------------------------- cards */
+
+main {
+  display: grid;
+  gap: 16px;
+  padding-block: 20px 8px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  background: linear-gradient(180deg, rgba(21, 28, 39, 0.94), rgba(15, 20, 28, 0.94));
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(6px);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card-head h2 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.status.ok {
+  color: var(--ok);
+}
+.status.err {
+  color: var(--err);
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.row + .row,
+.row + .check,
+.check + .row {
+  margin-top: 12px;
+}
+
+.row > label:not(.file-label):not(.check) {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.78rem;
+}
+
+/* --------------------------------------------------------------- inputs */
+
+select,
+input[type="text"],
+input[type="number"] {
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 11px;
+  min-width: 0;
+}
+
+select {
+  flex: 1 1 180px;
+}
+
+select:focus-visible,
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input[type="color"] {
+  width: 58px;
+  height: 42px;
+  padding: 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.btn {
+  appearance: none;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 15px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.05s, color 0.15s;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04121f;
+  font-weight: 600;
+}
+
+.btn.magenta {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #26041c;
+  font-weight: 600;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn.small {
+  padding: 6px 11px;
+  font-size: 0.8rem;
+}
+
+.btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04121f;
+  font-weight: 600;
+}
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ------------------------------------------------------------------ LEDs */
+
+.led-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.led-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(9, 13, 19, 0.6);
+}
+
+.led-card .swatch {
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.meta b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ------------------------------------------------------------ animations */
+
+.anim-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 220px;
+}
+
+/* ------------------------------------------------------------------ pins */
+
+.pins {
+  display: grid;
+  gap: 12px;
+}
+
+.pin {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 46px auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.pin-name {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.pin-val {
+  text-align: right;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------------- firmware */
+
+.firmware-card {
+  grid-column: 1 / -1;
+}
+
+.firmware-card > p {
+  margin: 0 0 14px;
+}
+
+.progress {
+  flex: 1 1 160px;
+  height: 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.15s ease;
+}
+
+.log {
+  margin: 14px 0 0;
+  max-height: 190px;
+  overflow: auto;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #070a0f;
+  color: var(--muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ------------------------------------------------------------------ help */
+
+.help details {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(9, 13, 19, 0.45);
+}
+.help summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 600;
+}
+.help ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+.help li + li {
+  margin-top: 7px;
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.footer {
+  padding-block: 26px 44px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.footer p {
+  margin: 0 0 6px;
+}
+
+/* ------------------------------------------------------------------ misc */
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 560px) {
+  .brand-text small {
+    display: none;
+  }
+  .led-grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 15px;
+  }
+  .pin {
+    grid-template-columns: 48px minmax(0, 1fr) 42px auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-leds i {
+    animation: none;
+    opacity: 1;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

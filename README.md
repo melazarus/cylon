@@ -53,16 +53,15 @@ Cylon plugs straight into a USB-A port and gives you a programmable RGB indicato
 
 ```
 .
-├── hardware/
-│   ├── EasyEdaProDoc.epro2   # EasyEDA Pro project (schematic + PCB)
-│   ├── schematic.pdf         # Schematic export
-│   ├── PCB.pdf               # PCB layout export
-│   ├── gerber.zip            # Fabrication Gerbers
-│   ├── BOM.csv               # Bill of materials (LCSC part numbers)
-│   ├── PickAndPlace.xlsx     # SMT pick-and-place / assembly data
-│   └── 3D.step               # Full 3D STEP model
+├── .github/workflows/        # GitHub Pages deploy + tagged firmware releases
+├── docs/
+│   └── PROTOCOL.md           # USB-MIDI protocol reference
+├── firmware/                 # PlatformIO firmware (CH32X035)
+├── hardware/                 # EasyEDA Pro project, schematic, PCB, gerbers, BOM, 3D
 ├── images/
 │   └── render_front.png      # Board render
+├── public/                   # Static web tool (deployed to GitHub Pages)
+├── tools/                    # Python CLI + single-file browser tool
 ├── LICENSE
 └── README.md
 ```
@@ -70,7 +69,29 @@ Cylon plugs straight into a USB-A port and gives you a programmable RGB indicato
 
 ## Firmware
 
-TODO
+PlatformIO project in `firmware/`:
+
+```bash
+cd firmware
+pio run -e release   # or: pio run -e debug
+```
+
+The firmware version is taken from the `CYLON_VERSION` environment variable
+(a tag such as `v1.0.0`) and falls back to `1.0.0` for local builds. It is
+reported over USB-MIDI (command `0x02`) and encoded into the USB serial number.
+Pushing a `v<major>.<minor>.<patch>` tag builds the release firmware and
+publishes `firmware.bin` as a (draft) GitHub release.
+
+## Web control & firmware update
+
+`public/` is a static page for controlling the board from a Chromium browser:
+LED colours and animations, the four I/O pins, the firmware version readout, and
+USB firmware updates. Firmware versions are listed from this repository's GitHub
+releases. It is published to GitHub Pages by `.github/workflows/pages.yml`; set
+the repository's Pages source to **GitHub Actions** once.
+
+The page talks to the board over **Web MIDI** for control and **WebUSB** for
+flashing, so it needs Chrome or Edge (desktop or Android) and HTTPS.
 
 ## Contributing
 
