@@ -47,8 +47,25 @@ export function loadFlasher() {
   return flasherPromise;
 }
 
-/** List published releases that carry a .bin firmware asset, newest first. */
+/**
+ * List available firmware versions.
+ *
+ * Published release binaries are bundled into `firmware/` at deploy time (see
+ * .github/scripts/bundle_firmware.py) so they can be fetched same-origin —
+ * GitHub's release asset host does not send CORS headers. Falls back to the
+ * GitHub API when the manifest is absent (e.g. local development).
+ */
 export async function listReleases() {
+  try {
+    const res = await fetch("./firmware/releases.json", { cache: "no-cache" });
+    if (res.ok) {
+      const manifest = await res.json();
+      if (Array.isArray(manifest)) return manifest;
+    }
+  } catch {
+    /* no bundled manifest — fall through to the API */
+  }
+
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
     headers: { Accept: "application/vnd.github+json" },
   });
@@ -68,15 +85,18 @@ export async function listReleases() {
       tag: release.tag_name,
       name: release.name || release.tag_name,
       publishedAt: release.published_at,
-      asset,
+      size: asset.size,
+      url: asset.browser_download_url,
     });
   }
   return out;
 }
 
-/** Download a release asset into a Uint8Array. */
-export async function downloadFirmware(asset) {
-  const res = await fetch(asset.browser_download_url, { redirect: "follow" });
+/** Download a firmware release into a Uint8Array. */
+export async function downloadFirmware(release) {
+  const url = release.file ? `./${release.file}` : release.url;
+  if (!url) throw new Error("No firmware download URL for this release");
+  const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new Error(`Firmware download failed (${res.status})`);
   return new Uint8Array(await res.arrayBuffer());
 }
@@ -85,9 +105,14 @@ export async function downloadFirmware(asset) {
  * Connect to the bootloader. This is the gesture-sensitive step, so it is done
  * before any firmware download. Call it directly from a click handler.
  *
+ * @param {object} opts
+ * @param {boolean} opts.enterBootloader  send the MIDI reboot command first
+ * @param {object} opts.midi
+ * @param {boolean} [opts.acceptAllDevices]  show every USB device, not just WCH
+ * @param {(msg: string) => void} [opts.onLog]
  * @returns {Promise<object>} a wchisp-web transport
  */
-export async function connectBootloader({ enterBootloader, midi, onLog }) {
+export async function connectBootloader({ enterBootloader, midi, acceptAllDevices = false, onLog }) {
   const WchIsp = await loadFlasher();
 
   if (enterBootloader) {
@@ -100,6 +125,15 @@ export async function connectBootloader({ enterBootloader, midi, onLog }) {
     await sleep(1800);
   }
 
+  // "Show all" bypasses the VID/PID filter, which is useful when the device
+  // enumerates with an unexpected ID or a driver keeps it out of the filter.
+  if (acceptAllDevices) {
+    onLog("Listing all USB devices — pick the WCH/Cylon bootloader.");
+    const device = await navigator.usb.requestDevice({ acceptAllDevices: true });
+    onLog(`Selected USB ${hex4(device.vendorId)}:${hex4(device.productId)} ${device.productName || ""}`.trim());
+    return WchIsp.WebUsbTransport.openDevice(device);
+  }
+
   // Reuse a previously authorised bootloader without a chooser; otherwise ask.
   const paired = await WchIsp.WebUsbTransport.openPaired();
   if (paired.length) {
@@ -110,14 +144,36 @@ export async function connectBootloader({ enterBootloader, midi, onLog }) {
   return WchIsp.WebUsbTransport.request();
 }
 
+function hex4(value) {
+  return `0x${(value ?? 0).toString(16).padStart(4, "0")}`;
+}
+
 /** Erase, program, verify and reset. `transport` comes from connectBootloader. */
 export async function programBootloader(transport, firmware, { onProgress, onLog }) {
   const WchIsp = window.WchIsp;
   try {
     const isp = new WchIsp.WchIspFlasher(transport);
     const info = await isp.connect(onProgress);
-    onLog(`Connected: ${info.name}`);
-    await isp.flash(firmware, { erase: true, verify: true, reset: true, progress: onProgress });
+    onLog(`Connected: ${info.name} (chipId 0x${info.chipId.toString(16)}, type 0x${info.deviceType.toString(16)})`);
+    if (info.codeFlashProtected) onLog("Note: the code flash reports as read-protected.");
+
+    // The reference wchisp CLI erases `binary.len()/1024 + 1` sectors. Doing
+    // that here (and telling wchisp-web not to erase) matches it exactly;
+    // wchisp-web's own erase is one sector short, which leaves the final sector
+    // unerased on the CH32X035 and makes verification fail near the end.
+    const sectors = Math.ceil(firmware.length / 1024) + 1;
+    onLog(`Erasing ${sectors} sector(s)…`);
+    await isp.eraseCode(sectors, "sectors", onProgress);
+
+    await isp.flash(firmware, {
+      erase: false,
+      verify: true,
+      reset: true,
+      // Write/verify only the real firmware bytes; the padding adds nothing and
+      // was where verification failed.
+      pad: false,
+      progress: onProgress,
+    });
     onLog("Flashed, verified and reset.");
     return info;
   } finally {

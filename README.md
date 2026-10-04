@@ -198,7 +198,18 @@ uv run tools/set_leds.py --boot
 cd firmware && pio run -e release -t upload
 ```
 
-SWD (`PC18`/`PC19`) is the button-free alternative and does not depend on the boot strap. On Windows you may need to bind the bootloader to WinUSB with [Zadig](https://zadig.akeo.ie/).
+SWD (`PC18`/`PC19`) is the button-free alternative and does not depend on the boot strap. On Windows you may need to bind the bootloader to WinUSB with [Zadig](https://zadig.akeo.ie/). On Linux, grant access with a udev rule and reload it:
+
+```
+# /etc/udev/rules.d/60-wchisp.rules
+SUBSYSTEM=="usb", ATTR{idVendor}=="4348", ATTR{idProduct}=="55e0", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="55e0", MODE="0666"
+```
+
+```bash
+sudo udevadm control --reload-rules && sudo udevadm trigger
+# replug the board and restart the browser
+```
 
 ### Releases
 

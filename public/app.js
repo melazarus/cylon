@@ -26,6 +26,7 @@ const els = {
   fwRefresh: $("fw-refresh"),
   fwFile: $("fw-file"),
   fwBoot: $("fw-boot"),
+  fwAllUsb: $("fw-all-usb"),
   fwFlash: $("fw-flash"),
   fwProgress: $("fw-progress"),
   fwPhase: $("fw-phase"),
@@ -337,7 +338,7 @@ async function loadReleases() {
     state.releases.forEach((release, i) => {
       const option = document.createElement("option");
       option.value = String(i);
-      option.textContent = `${release.name} (${release.asset.name})`;
+      option.textContent = `${release.tag}${release.size ? ` — ${(release.size / 1024).toFixed(1)} KB` : ""}`;
       els.fwSelect.appendChild(option);
     });
     els.fwSelect.disabled = false;
@@ -382,6 +383,7 @@ async function flash() {
     //    user gesture, so nothing slow may run before it.
     transport = await connectBootloader({
       enterBootloader: els.fwBoot.checked,
+      acceptAllDevices: els.fwAllUsb.checked,
       midi: cylon,
       onLog,
     });
@@ -393,8 +395,8 @@ async function flash() {
       onLog(`Reading local file ${state.localFirmware.name}…`);
       firmware = new Uint8Array(await state.localFirmware.arrayBuffer());
     } else {
-      onLog(`Downloading ${state.selectedRelease.asset.name} (${state.selectedRelease.name})…`);
-      firmware = await downloadFirmware(state.selectedRelease.asset);
+      onLog(`Downloading ${state.selectedRelease.name}…`);
+      firmware = await downloadFirmware(state.selectedRelease);
     }
     onLog(`Image size: ${firmware.length} bytes`);
 

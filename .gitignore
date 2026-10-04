@@ -1,2 +1,5 @@
 # Ignore the sandbox directory
 /sandbox
+
+# Generated at deploy time by the Pages workflow
+/public/firmware/

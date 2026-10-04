@@ -105,6 +105,11 @@
       Reboot board into bootloader first
     </label>
 
+    <label class="check" for="fw-all-usb">
+      <input type="checkbox" id="fw-all-usb">
+      Show all USB devices (if the bootloader doesn't appear)
+    </label>
+
     <div class="row">
       <button id="fw-flash" class="btn magenta" type="button" disabled>Flash firmware</button>
       <div class="progress" role="progressbar" aria-label="Flash progress">
@@ -122,10 +127,13 @@
       <ul>
         <li><strong>Web MIDI</strong> (LEDs, animations, pins) works in Chrome, Edge and other Chromium browsers over HTTPS. iOS Safari and Firefox are not supported.</li>
         <li><strong>Windows flashing:</strong> install the WinUSB driver for the WCH ISP device with <a href="https://zadig.akeo.ie/" target="_blank" rel="noreferrer">Zadig</a> (select the device, choose WinUSB).</li>
-        <li><strong>Linux flashing:</strong> allow access to the bootloader with a udev rule:
-          <br><code>SUBSYSTEM=="usb", ATTRS{idVendor}=="4348", ATTRS{idProduct}=="55e0", MODE="0666"</code>
-        </li>
+        <li><strong>Linux flashing:</strong> grant access to the bootloader with a udev rule (it may be either VID), then reload and replug:
+          <br><code>SUBSYSTEM=="usb", ATTR{idVendor}=="4348", ATTR{idProduct}=="55e0", MODE="0666"</code>
+          <br><code>SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="55e0", MODE="0666"</code>
+          <br><code>sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</code>
+          <br>If the device shows up but flashing says <em>Access denied</em>, the rule is not in effect yet. Check <code>ls -l /dev/bus/usb/&lt;bus&gt;/&lt;dev&gt;</code> shows <code>crw-rw-rw-</code>. Snap/Flatpak browsers are sandboxed and need extra USB permissions.</li>
         <li><strong>Stuck after flashing?</strong> Unplug the board, hold the BOOT button, plug it back in, then connect and flash again.</li>
+        <li><strong>No device in the picker?</strong> On Windows the bootloader usually needs the WinUSB driver (Zadig). On Linux the udev rule above is required. Make sure no other tool (WCHISPStudio, <code>pio upload</code>, a serial monitor) has the bootloader open. If it still doesn't show, tick <em>Show all USB devices</em> — the log prints the VID/PID of whatever you pick.</li>
       </ul>
     </details>
   </section>

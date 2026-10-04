@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - "public/**"
+      - ".github/scripts/**"
       - ".github/workflows/pages.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -26,6 +29,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Bundle release firmware
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/bundle_firmware.py
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
